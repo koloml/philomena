@@ -456,6 +456,22 @@ defmodule Philomena.Images do
 
         {:ok, count}
     end)
+    |> Multi.run(:manually_refresh_image_update_at, fn
+      _repo, %{image: {%{hidden_from_users: true}, _added, _removed}} ->
+        {:ok, 0}
+
+      repo, %{image: {image, added_tags, removed_tags}} ->
+        changed_tags_count = length(added_tags) + length(removed_tags)
+
+        case changed_tags_count do
+          0 -> nil
+          _ ->
+            Image.updated_at_changeset(image)
+            |> repo.update()
+        end
+
+        {:ok, changed_tags_count}
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{image: {image, _added, _removed}}} = res ->

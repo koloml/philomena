@@ -335,6 +335,11 @@ defmodule Philomena.Images.Image do
     |> put_change(:first_seen_at, DateTime.utc_now(:second))
   end
 
+  def updated_at_changeset(image) do
+    change(image)
+    |> put_change(:updated_at, DateTime.utc_now(:second))
+  end
+
   defp create_key do
     Base.encode16(:crypto.strong_rand_bytes(6), case: :lower)
   end
