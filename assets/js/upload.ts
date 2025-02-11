@@ -10,13 +10,33 @@ import { oncePersistedPageShown } from './utils/events';
 
 const MATROSKA_MAGIC = 0x1a45dfa3;
 
-function scrapeUrl(url) {
+interface ScrapedMedia {
+  url: string;
+  camo_url: string;
+}
+
+interface UploadedMedia {
+  camo_url: string | ArrayBufferLike;
+  type?: string;
+}
+
+export interface ScrapeResponse {
+  author_name: string;
+  description: string;
+  source_url: string;
+  images: ScrapedMedia[];
+  errors?: string[];
+}
+
+type UploadedOrScrapedMedia = UploadedMedia & Partial<Pick<ScrapedMedia, 'url'>>;
+
+function scrapeUrl(url: string): Promise<ScrapeResponse | null> {
   return fetchJson('POST', '/images/scrape', { url })
     .then(handleError)
     .then(response => response.json());
 }
 
-function elementForEmbeddedImage({ camo_url, type }) {
+function elementForEmbeddedImage({ camo_url, type }: UploadedOrScrapedMedia): HTMLImageElement | HTMLVideoElement {
   // The upload was fetched from the scraper and is a path name
   if (typeof camo_url === 'string') {
     return makeEl('img', { className: 'scraper-preview--image', src: camo_url });
@@ -29,19 +49,26 @@ function elementForEmbeddedImage({ camo_url, type }) {
 }
 
 function setupImageUpload() {
-  const imgPreviews = $('#js-image-upload-previews');
+  const imgPreviews = $<HTMLElement>('#js-image-upload-previews');
   if (!imgPreviews) return;
 
   const form = imgPreviews.closest('form');
-  const [fileField, remoteUrl, scraperError] = $$('.js-scraper', form);
-  const descrEl = $('.js-image-descr-input', form);
-  const tagsEl = $('.js-image-tags-input', form);
-  const sourceEl = $$('.js-source-url', form).find(input => input.value === '');
-  const fetchButton = $('#js-scraper-preview');
+  if (!form) return;
+
+  const [fileField, remoteUrl, scraperError] = $$<HTMLElement>('.js-scraper', form) as [
+    HTMLInputElement,
+    HTMLInputElement,
+    HTMLElement,
+  ];
+
+  const descrEl = $<HTMLTextAreaElement>('.js-image-descr-input', form);
+  const tagsEl = $<HTMLTextAreaElement>('.js-image-tags-input', form);
+  const sourceEl = $$<HTMLInputElement>('.js-source-url', form).find(input => input.value === '');
+  const fetchButton = $<HTMLButtonElement>('#js-scraper-preview');
   if (!fetchButton) return;
 
-  function showImages(images) {
-    clearEl(imgPreviews);
+  function showImages(images: (ScrapedMedia | UploadedMedia)[]) {
+    clearEl(imgPreviews!);
 
     images.forEach((image, index) => {
       const img = elementForEmbeddedImage(image);
@@ -53,22 +80,22 @@ function setupImageUpload() {
         type: 'radio',
         className: 'scraper-preview--input',
       });
-      if (image.url) {
+      if ('url' in image && image.url) {
         radio.name = 'scraper_cache';
-        radio.value = image.url;
+        radio.value = image.url!;
       }
       if (index === 0) {
         radio.checked = true;
       }
       label.appendChild(radio);
       label.appendChild(imgWrap);
-      imgPreviews.appendChild(label);
+      imgPreviews!.appendChild(label);
     });
   }
 
   function showError() {
-    clearEl(imgPreviews);
-    showEl(scraperError);
+    clearEl(imgPreviews!);
+    showEl(scraperError!);
     enableFetch();
   }
 
@@ -77,11 +104,11 @@ function setupImageUpload() {
   }
 
   function disableFetch() {
-    fetchButton.setAttribute('disabled', '');
+    fetchButton?.setAttribute('disabled', '');
   }
 
   function enableFetch() {
-    fetchButton.removeAttribute('disabled');
+    fetchButton?.removeAttribute('disabled');
   }
 
   const reader = new FileReader();
@@ -89,8 +116,8 @@ function setupImageUpload() {
   reader.addEventListener('load', event => {
     showImages([
       {
-        camo_url: event.target.result,
-        type: fileField.files[0].type,
+        camo_url: event.target!.result!,
+        type: fileField.files![0].type,
       },
     ]);
 
@@ -103,7 +130,11 @@ function setupImageUpload() {
 
   // Watch for files added to the form
   fileField.addEventListener('change', () => {
-    fileField.files.length && reader.readAsArrayBuffer(fileField.files[0]);
+    if (!fileField.files?.length) {
+      return;
+    }
+
+    reader.readAsArrayBuffer(fileField.files[0]);
   });
 
   // Watch for [Fetch] clicks
@@ -163,7 +194,7 @@ function setupImageUpload() {
 
   // Catch unintentional navigation away from the page
 
-  function beforeUnload(event) {
+  function beforeUnload(event: BeforeUnloadEvent) {
     // Chrome requires returnValue to be set
     event.preventDefault();
     event.returnValue = '';
@@ -177,11 +208,11 @@ function setupImageUpload() {
     window.removeEventListener('beforeunload', beforeUnload);
   }
 
-  function createTagError(message) {
-    const buttonAfter = $('#tagsinput-save');
+  function createTagError(message: string) {
+    const buttonAfter = $<HTMLElement>('#tagsinput-save');
     const errorElement = makeEl('span', { className: 'help-block tag-error', innerText: message });
 
-    buttonAfter.insertAdjacentElement('beforebegin', errorElement);
+    buttonAfter?.insertAdjacentElement('beforebegin', errorElement);
   }
 
   function clearTagErrors() {
@@ -193,16 +224,16 @@ function setupImageUpload() {
   // populate tag error helper bars as necessary
   // return true if all checks pass
   // return false if any check fails
-  function validateTags() {
-    const tagInput = $('textarea.js-taginput');
+  function validateTags(): boolean {
+    const tagInput = $<HTMLTextAreaElement>('textarea.js-taginput');
 
     if (!tagInput) {
       return true;
     }
 
-    const tagsArr = tagInput.value.split(',').map(t => t.trim());
+    const tagsArr: string[] = tagInput.value.split(',').map(t => t.trim());
 
-    const errors = [];
+    const errors: string[] = [];
 
     let hasRating = false;
     let hasSafe = false;
@@ -235,7 +266,7 @@ function setupImageUpload() {
   }
 
   function disableUploadButton() {
-    const submitButton = $('.button.input--separate-top');
+    const submitButton = $<HTMLButtonElement>('.button.input--separate-top');
 
     if (!submitButton) {
       return;
@@ -262,7 +293,7 @@ function setupImageUpload() {
     });
   }
 
-  function submitHandler(event) {
+  function submitHandler(event: SubmitEvent) {
     // Remove any existing tag error elements
     clearTagErrors();
 

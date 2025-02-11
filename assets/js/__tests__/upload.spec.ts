@@ -7,10 +7,10 @@ import { fireEvent, waitFor } from '@testing-library/dom';
 import { promises } from 'fs';
 import { join } from 'path';
 
-import { setupImageUpload } from '../upload';
+import { ScrapeResponse, setupImageUpload } from '../upload';
 
 /* eslint-disable camelcase */
-const scrapeResponse = {
+const scrapeResponse: ScrapeResponse = {
   description: 'test',
   images: [
     { url: 'http://localhost/images/1', camo_url: 'http://localhost/images/1' },
