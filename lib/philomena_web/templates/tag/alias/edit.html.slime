@@ -9,7 +9,15 @@ h1
 
   .field
     => label f, "Alias target:"
-    = text_input f, :target_tag, value: alias_target(@tag), class: "input"
+    = text_input f, :target_tag,
+      value: alias_target(@tag),
+      class: "input",
+      autocapitalize: "none",
+      spellcheck: "false",
+      autocomplete: if(@conn.cookies["enable_search_ac"], do: "on", else: "off"),
+      data: [ \
+        autocomplete: "single-tag",
+      ]
     = error_tag f, :tag
     = error_tag f, :aliased_tag
 
